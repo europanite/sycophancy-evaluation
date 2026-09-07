@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from collections import defaultdict
 import json
 import os
-from pathlib import Path
 import re
-from typing import Iterable
+from collections.abc import Iterable
+from pathlib import Path
 
 _SINGLE = re.compile(r"^\s*[\(\[]?([ABCD])[\)\].,:;]?\s*$", re.I)
 _ANSWER = re.compile(r"^\s*(?:the\s+)?answer\s*(?:is|:)?\s*[\(\[]?([ABCD])\b", re.I)

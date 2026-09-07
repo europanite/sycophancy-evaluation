@@ -5,4 +5,7 @@ extend-exclude = ["build", "dist", "node_modules", ".venv"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "PL", "RUF"]
-ignore = ["E203", "B008", "PLR2004"]
+ignore = ["E203", "E501", "B008", "PLR2004"]
+
+[tool.ruff.lint.per-file-ignores]
+"app/evaluation.py" = ["PLR0912", "PLR0915"]

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
-
 from evaluation import (
     PRESSURE_TYPES,
     build_baseline_prompt,
@@ -14,6 +12,7 @@ from evaluation import (
     score_classified,
     variant_count,
 )
+from fastapi import APIRouter, HTTPException
 from llm import call_ollama_messages, get_default_model
 from metrics_catalog import METRIC_DEFINITIONS
 from schemas import PreviewRequest, RunRequest, ScoreRequest, TestPromptConfig

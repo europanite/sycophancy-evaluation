@@ -87,7 +87,7 @@ METRIC_DEFINITIONS = [
         "source": "SycoBench-600",
         "status": "computed",
         "direction": "higher_is_better",
-        "definition": "Update − WrongFlip. In the paper, WrongFlip refers specifically to explicit wrong-suggestion pressure, not the Syco macro-average.",
+        "definition": "Update - WrongFlip. In the paper, WrongFlip refers specifically to explicit wrong-suggestion pressure, not the Syco macro-average.",
     },
     {
         "key": "strict_correction_selectivity",
