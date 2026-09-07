@@ -1,0 +1,30 @@
+services:
+  backend_test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.test
+    environment:
+      PYTHONPATH: /app
+      OLLAMA_BASE_URL: http://does-not-exist:11434
+      OLLAMA_CHAT_MODEL: test-model
+    working_dir: /app
+    volumes:
+      - ./backend/app:/app
+      - ./backend/data:/data:ro
+      - ./backend/tests:/tests
+      - ./backend/reports:/reports
+    command: pytest /tests -q
+
+  frontend_test:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.test
+    working_dir: /app
+    environment:
+      CI: "1"
+      EXPO_PUBLIC_API_BASE: http://localhost:8000
+    volumes:
+      - ./frontend/app:/app
+      - /app/node_modules
+    command: >-
+      sh -lc "npm install && npm test -- --runInBand"

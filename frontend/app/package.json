@@ -1,0 +1,31 @@
+{
+  "name": "sycophancy-evaluation-frontend",
+  "version": "0.4.2",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "web": "expo start --web",
+    "test": "jest --runInBand",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "babel-preset-expo": "~54.0.10",
+    "expo": "~54.0.33",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-safe-area-context": "~5.6.1",
+    "react-native-web": "~0.21.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@testing-library/react-native": "13.3.3",
+    "@types/jest": "29.5.14",
+    "@types/react": "~19.1.0",
+    "jest": "~29.7.0",
+    "jest-expo": "~54.0.17",
+    "react-test-renderer": "19.1.0",
+    "typescript": "~5.9.2"
+  }
+}

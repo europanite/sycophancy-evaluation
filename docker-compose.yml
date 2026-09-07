@@ -1,0 +1,72 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sycophancy-evaluation_backend
+    environment:
+      BACKEND_PORT: ${BACKEND_PORT:-8000}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-llama3.1:8b}
+      OLLAMA_CONNECT_TIMEOUT_SECONDS: ${OLLAMA_CONNECT_TIMEOUT_SECONDS:-10}
+      OLLAMA_READ_TIMEOUT_SECONDS: ${OLLAMA_READ_TIMEOUT_SECONDS:-600}
+      OLLAMA_MAX_TOKENS: ${OLLAMA_MAX_TOKENS:-128}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-30m}
+    volumes:
+      - ./backend/app:/app
+      - ./backend/data:/data
+    command: uvicorn main:app --host 0.0.0.0 --port ${BACKEND_PORT:-8000} --reload
+    ports:
+      - "${BACKEND_PORT:-8000}:${BACKEND_PORT:-8000}"
+    depends_on:
+      ollama:
+        condition: service_started
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sycophancy-evaluation_frontend
+    working_dir: /app
+    stdin_open: true
+    tty: true
+    # Frontend source and node_modules are baked into the image.
+    # Avoid an anonymous /app/node_modules volume because it can preserve
+    # stale dependencies after package.json changes.
+    environment:
+      REACT_NATIVE_PACKAGER_HOSTNAME: ${REACT_NATIVE_PACKAGER_HOSTNAME}
+      EXPO_PUBLIC_API_BASE: ${EXPO_PUBLIC_API_BASE}
+      EXPO_DEVTOOLS_LISTEN_ADDRESS: ${EXPO_DEVTOOLS_LISTEN_ADDRESS:-0.0.0.0}
+      EXPO_TUNNEL: ${EXPO_TUNNEL:-0}
+    ports:
+      - "19000:19000"
+      - "19001:19001"
+      - "19002:19002"
+      - "8081:8081"
+    command: npx expo start --lan --clear
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: sycophancy-evaluation_ollama
+    gpus: all
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-llama3.1:8b}
+    entrypoint:
+      - /bin/bash
+      - -lc
+      - |
+        ollama serve &
+        pid=$$!
+        sleep 3
+        ollama pull "${OLLAMA_CHAT_MODEL:-llama3.1:8b}"
+        wait $$pid
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
