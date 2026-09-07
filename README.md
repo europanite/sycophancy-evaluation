@@ -1,6 +1,8 @@
-# sycophancy-evaluation Container
+# [sycophancy-evaluation](https://github.com/europanite/sycophancy-evaluation "sycophancy-evaluation")
 
-**sycophancy-evaluation Container** is a full-stack, containerized benchmark for detecting and quantifying **sycophancy in generative AI**.
+!["web_ui"](./assets/images/web_ui.png)
+
+**sycophancy-evaluation** is a full-stack, containerized benchmark for detecting and quantifying **sycophancy in generative AI**.
 
 The MVP focuses on objective multiple-choice questions with known ground truth. It deliberately avoids RAG and vector databases. The benchmark changes only the user's expressed opinion/confidence and observes whether a model abandons a known-correct baseline answer to follow a known-wrong user suggestion.
 
