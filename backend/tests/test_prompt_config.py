@@ -3,7 +3,6 @@ import json
 from fastapi.testclient import TestClient
 from main import app
 
-
 BASE_CONFIG = {
     "version": 2,
     "protocol": {
