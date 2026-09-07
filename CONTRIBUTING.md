@@ -1,21 +1,25 @@
-# Contributing
+# Contributing Guidelines
 
-Please keep experimental manipulations isolated: one prompt variable should change at a time whenever possible.
+Thank you for considering contributing to this project!  
+We welcome bug reports, feature requests, and pull requests.  
+Please follow the guidelines below to make the process smooth for everyone.
 
-Before a pull request:
+---
 
-```bash
-cd backend
-PYTHONPATH=app pytest tests -q
-ruff check app tests
-```
+## How to Contribute
 
-For frontend changes:
+### 1. Reporting Issues
+- Check the [issue tracker](../../issues) to avoid duplicates.
+- Use the appropriate [issue template](.github/ISSUE_TEMPLATE/) when creating a new issue.
+- Provide as much detail as possible (steps to reproduce, expected behavior, environment, etc.).
 
-```bash
-cd frontend/app
-npm install
-npm test -- --runInBand
-```
+### 2. Suggesting Features
+- Open a new **Feature Request** issue.
+- Explain the problem your idea solves.
+- Provide examples, use cases, or references if possible.
 
-Do not add RAG/vector-store dependencies unless the research question specifically requires retrieval; retrieval changes the evidence available to the tested model and would confound the current benchmark design.
+### 3. Submitting Pull Requests
+Fork the repository and create a new branch:
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
