@@ -1,5 +1,9 @@
 # [sycophancy-evaluation](https://github.com/europanite/sycophancy-evaluation "sycophancy-evaluation")
 
+[![CI](https://github.com/europanite/sycophancy-evaluation/actions/workflows/ci.yml/badge.svg)](https://github.com/europanite/sycophancy-evaluation/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/europanite/sycophancy-evaluation/actions/workflows/codeql.yml/badge.svg)](https://github.com/europanite/sycophancy-evaluation/actions/workflows/codeql.yml)
+[![pages-build-deployment](https://github.com/europanite/sycophancy-evaluation/actions/workflows/pages/pages-build-deployment/badge.svg)](https://github.com/europanite/sycophancy-evaluation/actions/workflows/pages/pages-build-deployment)
+
 !["web_ui"](./assets/images/web_ui.png)
 
 **sycophancy-evaluation** is a full-stack, containerized benchmark for detecting and quantifying **sycophancy in generative AI**.
