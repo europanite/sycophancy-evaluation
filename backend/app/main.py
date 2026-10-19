@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import benchmark
+from routers import benchmark, evidence
 
 
 @asynccontextmanager
@@ -31,3 +31,4 @@ def health():
 
 
 app.include_router(benchmark.router)
+app.include_router(evidence.router)

@@ -54,6 +54,30 @@ type Report = {
   counts: Record<string, number>;
 };
 
+type EvidenceReport = {
+  total_items: number;
+  baseline_correct_items: number;
+  baseline_accuracy: number | null;
+  false_note_amplification_vs_claim_only: number | null;
+  true_note_rescue_vs_claim_only: number | null;
+  false_vs_true_note_with_wrong_claim: number | null;
+  false_vs_true_note_without_claim: number | null;
+  claim_evidence_interaction: number | null;
+  flip_to_wrong_or_unparsed_rate: Record<string, number | null>;
+  exact_wrong_suggestion_adoption_rate: Record<string, number | null>;
+};
+
+type EvidenceRun = {
+  item_id: string;
+  condition: string;
+  messages: Message[];
+  answer: string | null;
+  correct_answer: string;
+  raw_answer: string;
+};
+
+type EvidencePreview = { item_id: string; condition: string; messages: Message[] };
+
 type RunRow = {
   run_id: string;
   item_id: string;
@@ -180,6 +204,14 @@ function Conversation({ messages, rawAnswer }: { messages: Message[]; rawAnswer?
 
 export default function HomeScreen() {
   const [model, setModel] = useState("llama3.1:8b");
+  const [evidenceCount, setEvidenceCount] = useState("4");
+  const [evidenceLoading, setEvidenceLoading] = useState(false);
+  const [evidenceError, setEvidenceError] = useState<string | null>(null);
+  const [evidenceReport, setEvidenceReport] = useState<EvidenceReport | null>(null);
+  const [evidenceRuns, setEvidenceRuns] = useState<EvidenceRun[]>([]);
+  const [evidencePreview, setEvidencePreview] = useState<EvidencePreview[]>([]);
+  const [showEvidenceRuns, setShowEvidenceRuns] = useState(false);
+
   const [itemCount, setItemCount] = useState("4");
   const [variantCount, setVariantCount] = useState("3");
   const [includeCorrectControl, setIncludeCorrectControl] = useState(true);
@@ -202,6 +234,37 @@ export default function HomeScreen() {
     const maximum = minimum + (includeCorrectControl ? n * v : 0);
     return { minimum, maximum };
   }, [itemCount, variantCount, includeCorrectControl]);
+
+  const experimentRequest = () => {
+    const item_count = Number.parseInt(evidenceCount, 10);
+    if (!Number.isInteger(item_count) || item_count < 1 || item_count > 8) {
+      throw new Error("Evidence demo needs 1–8 items.");
+    }
+    return { item_count, model };
+  };
+
+  const callEvidence = async (previewOnly: boolean) => {
+    setEvidenceLoading(true);
+    setEvidenceError(null);
+    setEvidenceReport(null);
+    setEvidenceRuns([]);
+    setEvidencePreview([]);
+    try {
+      const response = await fetch(`${API_BASE}/evidence/${previewOnly ? "preview" : "run"}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(experimentRequest()),
+      });
+      const content = await response.text();
+      if (!response.ok) throw new Error(`${response.status}: ${content}`);
+      const data = JSON.parse(content);
+      if (previewOnly) setEvidencePreview(data.manifest ?? []);
+      else { setEvidenceReport(data.report); setEvidenceRuns(data.runs ?? []); }
+    } catch (err: any) {
+      setEvidenceError(err?.message ?? String(err));
+    } finally {
+      setEvidenceLoading(false);
+    }
+  };
 
   const loadConfig = async () => {
     setPromptLoading(true);
@@ -332,6 +395,64 @@ export default function HomeScreen() {
               </View>
             </Section>
           ) : null}
+
+          <Section>
+            <Text style={{ fontSize: 18, fontWeight: "700" }}>Experimental evidence counterfactuals</Text>
+            <Text style={{ color: "#4b5563" }}>
+              New: replay the same correct baseline under a wrong user claim and factually true or false
+              user-supplied notes. This is an exploratory paired experiment, not a SycoBench-600 score.
+            </Text>
+            <LabeledInput label="Evidence demo items (1–8)" value={evidenceCount} onChangeText={setEvidenceCount} />
+            <Text style={{ color: "#6b7280", fontSize: 12 }}>
+              Six model calls per item (one baseline plus five independent conditions).
+              Notes are synthetic examples, not verified third-party citations.
+            </Text>
+            <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+              <Pressable onPress={() => callEvidence(true)} disabled={evidenceLoading} style={{ flexGrow: 1, padding: 11, borderRadius: 8, borderWidth: 1, borderColor: "#1d4ed8", alignItems: "center" }}>
+                <Text style={{ color: "#1d4ed8", fontWeight: "700" }}>Preview conditions</Text>
+              </Pressable>
+              <Pressable onPress={() => callEvidence(false)} disabled={evidenceLoading} style={{ flexGrow: 1, padding: 11, borderRadius: 8, backgroundColor: "#1d4ed8", alignItems: "center" }}>
+                <Text style={{ color: "white", fontWeight: "700" }}>{evidenceLoading ? "Working…" : "Run evidence experiment"}</Text>
+              </Pressable>
+            </View>
+            {evidenceError ? <Text style={{ color: "#b91c1c" }}>{evidenceError}</Text> : null}
+            {evidencePreview.length > 0 ? (
+              <View style={{ gap: 8 }}>
+                <Text style={{ fontWeight: "700" }}>Preview ({evidencePreview.length} conversations; first case shown)</Text>
+                {evidencePreview.slice(0, 6).map((row) => (
+                  <View key={`${row.item_id}-${row.condition}`} style={{ gap: 4 }}>
+                    <Text style={{ fontWeight: "600" }}>{row.condition}</Text>
+                    <Conversation messages={row.messages} />
+                  </View>
+                ))}
+              </View>
+            ) : null}
+            {evidenceReport ? (
+              <View style={{ gap: 10 }}>
+                <Text>Baseline correct: {evidenceReport.baseline_correct_items} / {evidenceReport.total_items}. Contrasts use only baseline-correct cases.</Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                  <Card title="False-note amplification" value={pp(evidenceReport.false_note_amplification_vs_claim_only)} />
+                  <Card title="True-note rescue" value={pp(evidenceReport.true_note_rescue_vs_claim_only)} />
+                  <Card title="Claim × evidence interaction" value={pp(evidenceReport.claim_evidence_interaction)} />
+                </View>
+                <Text style={{ fontWeight: "700" }}>Flip to wrong or unparsed, by condition</Text>
+                {Object.entries(evidenceReport.flip_to_wrong_or_unparsed_rate).map(([type, value]) => (
+                  <View key={type} style={{ flexDirection: "row", justifyContent: "space-between", gap: 10 }}>
+                    <Text style={{ flexShrink: 1 }}>{type}</Text><Text>{pct(value)}</Text>
+                  </View>
+                ))}
+                <Pressable onPress={() => setShowEvidenceRuns(v => !v)} style={{ padding: 10, borderRadius: 7, borderWidth: 1, borderColor: "#cbd5e1" }}>
+                  <Text style={{ color: "#1d4ed8" }}>{showEvidenceRuns ? "Hide" : "Show"} all raw evidence conversations ({evidenceRuns.length})</Text>
+                </Pressable>
+                {showEvidenceRuns ? evidenceRuns.map((run) => (
+                  <View key={`${run.item_id}-${run.condition}`} style={{ gap: 4 }}>
+                    <Text style={{ fontWeight: "600" }}>{run.item_id} · {run.condition} · answer={run.answer ?? "unparsed"} · truth={run.correct_answer}</Text>
+                    <Conversation messages={run.messages} rawAnswer={run.raw_answer} />
+                  </View>
+                )) : null}
+              </View>
+            ) : null}
+          </Section>
 
           <Section>
             <Text style={{ fontSize: 18, fontWeight: "700" }}>Evaluation definitions</Text>
