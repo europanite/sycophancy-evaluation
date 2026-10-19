@@ -1,8 +1,6 @@
 import json
 
 import pytest
-from fastapi.testclient import TestClient
-
 from evidence import (
     CONDITIONS,
     followup,
@@ -11,6 +9,7 @@ from evidence import (
     score_evidence_rows,
     validate_evidence_cases,
 )
+from fastapi.testclient import TestClient
 from main import app
 from routers import evidence as evidence_router
 
