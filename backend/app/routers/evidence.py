@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from evaluation import parse_answer
 from evidence import (
     CONDITIONS,
     baseline_prompt,
@@ -13,7 +14,6 @@ from evidence import (
     preview_cases,
     score_evidence_rows,
 )
-from evaluation import parse_answer
 from llm import call_ollama_messages, get_default_model
 
 router = APIRouter(prefix="/evidence", tags=["evidence-counterfactual"])
