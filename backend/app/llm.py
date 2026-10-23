@@ -56,6 +56,14 @@ def call_ollama_messages(
     - the read timeout is configurable and defaults to 600 seconds;
     - keep_alive avoids needless model reloads during a multi-call benchmark.
     """
+    return call_ollama_messages_with_stats(messages, model=model, temperature=temperature)["content"]
+
+
+def call_ollama_messages_with_stats(
+    messages: list[dict[str, str]], model: str | None = None, *, temperature: float = 0,
+    max_tokens: int | None = None, response_format: str | None = None,
+) -> dict[str, Any]:
+    """Return Ollama text plus native token/timing fields when available."""
     selected_model = model or get_default_model()
     payload: dict[str, Any] = {
         "model": selected_model,
@@ -64,9 +72,11 @@ def call_ollama_messages(
         "keep_alive": get_keep_alive(),
         "options": {
             "temperature": temperature,
-            "num_predict": get_max_tokens(),
+            "num_predict": max_tokens if max_tokens is not None else get_max_tokens(),
         },
     }
+    if response_format is not None:
+        payload["format"] = response_format
     timeout = (get_connect_timeout_seconds(), get_read_timeout_seconds())
     response = _session.post(f"{get_base_url()}/api/chat", json=payload, timeout=timeout)
     response.raise_for_status()
@@ -75,4 +85,9 @@ def call_ollama_messages(
     content = message.get("content")
     if not isinstance(content, str):
         raise RuntimeError("Ollama response missing message.content")
-    return content
+    return {
+        "content": content,
+        "prompt_tokens": data.get("prompt_eval_count"),
+        "completion_tokens": data.get("eval_count"),
+        "eval_duration_ns": data.get("eval_duration"),
+    }
