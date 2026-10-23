@@ -139,6 +139,56 @@ type MetricDefinition = {
   definition: string;
 };
 
+type PerformanceRow = {
+  case_id: string;
+  category: string;
+  repeat_index: number;
+  grader_type: string;
+  messages: Message[];
+  raw_answer: string;
+  passed: boolean;
+  reason: string;
+  confidence: number | null;
+  elapsed_ms: number | null;
+};
+
+type PerformanceReport = {
+  runs: number;
+  unique_cases: number;
+  overall_accuracy: number | null;
+  structured_format_compliance: number | null;
+  repeat_consistency: number | null;
+  all_repeats_correct: number | null;
+  repeated_cases: number;
+  category_breakdown: Record<string, { runs: number; accuracy: number | null; cases: number }>;
+  calibration: { samples: number; brier_score: number | null; ece_5_bins: number | null };
+  latency_ms: { observed: number; mean: number | null; p50: number | null; p95: number | null };
+  generation_tokens_per_second: { observed: number; mean: number | null };
+};
+
+type PerformancePreview = { case_id: string; category: string; repeat_index: number; grader_type: string; messages: Message[] };
+
+type RagValue = { mean: number | null; samples: number };
+type RagReport = {
+  item_count: number;
+  retrieval_at_k: Record<string, Record<string, RagValue>>;
+  context_precision_ap: RagValue;
+  generation: Record<string, RagValue>;
+  rows: {
+    item_id: string;
+    question: string;
+    judgment_source: string;
+    retrieval: { gold_count: number | null; context_precision_ap: number | null };
+    generation: Record<string, number | null>;
+    judgment: unknown;
+    judge_raw_response: string | null;
+  }[];
+};
+
+function numberValue(value: number | null | undefined, unit = "", digits = 1) {
+  return value == null ? "—" : `${value.toFixed(digits)}${unit}`;
+}
+
 function pct(value: number | null | undefined) {
   return value == null ? "—" : `${(value * 100).toFixed(1)}%`;
 }
@@ -226,6 +276,23 @@ export default function HomeScreen() {
   const [promptSaving, setPromptSaving] = useState(false);
   const [promptStatus, setPromptStatus] = useState<string | null>(null);
   const [metricDefinitions, setMetricDefinitions] = useState<MetricDefinition[]>([]);
+  const [performanceCategories, setPerformanceCategories] = useState<string[]>([]);
+  const [performanceCaseCounts, setPerformanceCaseCounts] = useState<Record<string, number>>({});
+  const [performanceCategory, setPerformanceCategory] = useState("all");
+  const [performanceCount, setPerformanceCount] = useState("12");
+  const [performanceRepetitions, setPerformanceRepetitions] = useState("1");
+  const [performanceLoading, setPerformanceLoading] = useState(false);
+  const [performanceError, setPerformanceError] = useState<string | null>(null);
+  const [performanceReport, setPerformanceReport] = useState<PerformanceReport | null>(null);
+  const [performanceRows, setPerformanceRows] = useState<PerformanceRow[]>([]);
+  const [performancePreview, setPerformancePreview] = useState<PerformancePreview[]>([]);
+  const [performanceShowAll, setPerformanceShowAll] = useState(false);
+  const [ragJson, setRagJson] = useState("");
+  const [ragJudgeModel, setRagJudgeModel] = useState("llama3.1:8b");
+  const [ragLoading, setRagLoading] = useState(false);
+  const [ragError, setRagError] = useState<string | null>(null);
+  const [ragReport, setRagReport] = useState<RagReport | null>(null);
+  const [ragShowEvidence, setRagShowEvidence] = useState(false);
 
   const counts = useMemo(() => {
     const n = Number.parseInt(itemCount || "0", 10) || 0;
@@ -287,6 +354,80 @@ export default function HomeScreen() {
   };
 
   useEffect(() => { loadConfig(); }, []);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/performance/cases`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Could not fetch performance cases (${response.status})`);
+        return response.json();
+      })
+      .then((data) => {
+        setPerformanceCategories(data.categories ?? []);
+        const counts: Record<string, number> = { all: data.count ?? 0 };
+        for (const entry of data.cases ?? []) counts[entry.category] = (counts[entry.category] ?? 0) + 1;
+        setPerformanceCaseCounts(counts);
+      })
+      .catch((err) => setPerformanceError(String(err)));
+  }, []);
+
+  const loadRagExamples = async () => {
+    setRagError(null);
+    try {
+      const res = await fetch(`${API_BASE}/rag/examples`);
+      if (!res.ok) throw new Error(`Examples unavailable (${res.status})`);
+      setRagJson(JSON.stringify(await res.json(), null, 2));
+      setRagReport(null);
+    } catch (err: any) { setRagError(err?.message ?? String(err)); }
+  };
+  useEffect(() => { loadRagExamples(); }, []);
+
+  const runRag = async (useJudge: boolean) => {
+    setRagError(null); setRagReport(null); setRagLoading(true);
+    try {
+      const request = JSON.parse(ragJson);
+      if (useJudge) request.judge_model = ragJudgeModel;
+      const result = await fetch(`${API_BASE}/rag/${useJudge ? "judge" : "score"}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request),
+      });
+      const body = await result.text();
+      if (!result.ok) throw new Error(`${result.status}: ${body}`);
+      setRagReport(JSON.parse(body));
+    } catch (err: any) { setRagError(err?.message ?? String(err)); }
+    finally { setRagLoading(false); }
+  };
+
+  const callPerformance = async (previewOnly: boolean) => {
+    const item_count = Number(performanceCount);
+    const repetitions = Number(performanceRepetitions);
+    if (!Number.isInteger(item_count) || item_count < 1 || item_count > 100 || !Number.isInteger(repetitions) || repetitions < 1 || repetitions > 5) {
+      setPerformanceError("Enter 1–100 cases and 1–5 repetitions.");
+      return;
+    }
+    setPerformanceLoading(true);
+    setPerformanceError(null);
+    setPerformanceReport(null);
+    setPerformanceRows([]);
+    setPerformancePreview([]);
+    try {
+      const categories = performanceCategory === "all" ? null : [performanceCategory];
+      const availableCount = performanceCaseCounts[performanceCategory] ?? item_count;
+      const selectedCount = Math.min(item_count, availableCount);
+      if (selectedCount < 1) throw new Error("No cases available for this category.");
+      const response = await fetch(`${API_BASE}/performance/${previewOnly ? "preview" : "run"}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ item_count: selectedCount, repetitions, categories, model }),
+      });
+      const body = await response.text();
+      if (!response.ok) throw new Error(`${response.status}: ${body}`);
+      const data = JSON.parse(body);
+      if (previewOnly) setPerformancePreview(data.manifest ?? []);
+      else { setPerformanceReport(data.report); setPerformanceRows(data.runs ?? []); }
+    } catch (err: any) {
+      setPerformanceError(err?.message ?? String(err));
+    } finally {
+      setPerformanceLoading(false);
+    }
+  };
 
   const saveTestPrompts = async () => {
     if (!promptConfig) return;
@@ -379,7 +520,7 @@ export default function HomeScreen() {
         <View style={{ width: "100%", maxWidth: 1050, gap: 14 }}>
           <View>
             <Text style={{ fontSize: 30, fontWeight: "800" }}>sycophancy-evaluation</Text>
-            <Text style={{ color: "#5f6878", marginTop: 4 }}>Paper-style sycophancy evaluation with auditable conversations.</Text>
+            <Text style={{ color: "#5f6878", marginTop: 4 }}>Auditable sycophancy experiments and broader LLM performance diagnostics.</Text>
           </View>
 
           {promptConfig ? (
@@ -395,6 +536,134 @@ export default function HomeScreen() {
               </View>
             </Section>
           ) : null}
+
+          <Section>
+            <Text style={{ fontSize: 18, fontWeight: "700" }}>General LLM performance diagnostics</Text>
+            <Text style={{ color: "#4b5563" }}>Independent of the sycophancy protocol. Original, deterministic tasks cover arithmetic, reasoning, extraction, JSON, instruction following, grounding, multilingual vocabulary and more. These are small diagnostic checks, not a standardized leaderboard.</Text>
+            <Text style={{ fontWeight: "700" }}>Capability category</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+              {["all", ...performanceCategories].map((category) => (
+                <Pressable key={category} onPress={() => setPerformanceCategory(category)} style={{ borderRadius: 7, paddingHorizontal: 9, paddingVertical: 6, borderWidth: 1, borderColor: performanceCategory === category ? "#1d4ed8" : "#cbd5e1", backgroundColor: performanceCategory === category ? "#dbeafe" : "white" }}>
+                  <Text style={{ fontSize: 12, color: "#1e3a8a" }}>{category.replaceAll("_", " ")}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <LabeledInput label={`Number of cases (available: ${performanceCaseCounts[performanceCategory] ?? "loading…"})`} value={performanceCount} onChangeText={setPerformanceCount} />
+            <LabeledInput label="Repetitions per case (1–5)" value={performanceRepetitions} onChangeText={setPerformanceRepetitions} />
+            <LabeledInput label="Ollama model (shared with SycoBench)" value={model} onChangeText={setModel} />
+            <Text style={{ color: "#6b7280", fontSize: 12 }}>Small runs spread cases across categories. Repetitions assess exact response consistency; temperature defaults to zero. Higher case count and repetition count increase processing time.</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              <Pressable onPress={() => callPerformance(true)} disabled={performanceLoading} style={{ flexGrow: 1, padding: 11, borderRadius: 8, borderWidth: 1, borderColor: "#1d4ed8", alignItems: "center" }}>
+                <Text style={{ color: "#1d4ed8", fontWeight: "700" }}>Preview tasks</Text>
+              </Pressable>
+              <Pressable onPress={() => callPerformance(false)} disabled={performanceLoading} style={{ flexGrow: 1, padding: 11, borderRadius: 8, backgroundColor: "#1d4ed8", alignItems: "center" }}>
+                <Text style={{ color: "white", fontWeight: "700" }}>{performanceLoading ? "Evaluating…" : "Run performance suite"}</Text>
+              </Pressable>
+            </View>
+            {performanceLoading ? <ActivityIndicator /> : null}
+            {performanceError ? <Text style={{ color: "#b91c1c" }}>{performanceError}</Text> : null}
+            {performancePreview.length ? (
+              <View style={{ gap: 8 }}>
+                <Text style={{ fontWeight: "700" }}>Task preview ({performancePreview.length} model calls)</Text>
+                {performancePreview.map((row) => (
+                  <View key={`${row.case_id}-${row.repeat_index}`} style={{ gap: 4 }}>
+                    <Text style={{ fontWeight: "600" }}>{row.category} / {row.case_id} / repeat {row.repeat_index + 1} / {row.grader_type}</Text>
+                    <Conversation messages={row.messages} />
+                  </View>
+                ))}
+              </View>
+            ) : null}
+            {performanceReport ? (
+              <View style={{ gap: 10 }}>
+                <Text>{performanceReport.unique_cases} cases · {performanceReport.runs} calls · deterministic local rubric</Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                  <Card title="Accuracy" value={pct(performanceReport.overall_accuracy)} />
+                  <Card title="Structured format" value={pct(performanceReport.structured_format_compliance)} />
+                  <Card title="Exact repeat consistency" value={pct(performanceReport.repeat_consistency)} note={`Across ${performanceReport.repeated_cases} repeated cases`} />
+                  <Card title="All repetitions correct" value={pct(performanceReport.all_repeats_correct)} />
+                  <Card title="Median latency" value={numberValue(performanceReport.latency_ms.p50, " ms", 0)} />
+                  <Card title="Mean generation speed" value={numberValue(performanceReport.generation_tokens_per_second.mean, " tok/s")} />
+                  <Card title="Brier score ↓" value={numberValue(performanceReport.calibration.brier_score, "", 3)} note={`${performanceReport.calibration.samples} parseable confidence responses`} />
+                  <Card title="ECE (5 bins) ↓" value={numberValue(performanceReport.calibration.ece_5_bins, "", 3)} note="Exploratory at small N" />
+                </View>
+                <Text style={{ fontWeight: "700" }}>Category accuracy (each denominator shown)</Text>
+                {Object.entries(performanceReport.category_breakdown).map(([category, values]) => (
+                  <View key={category} style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
+                    <Text style={{ flexShrink: 1 }}>{category.replaceAll("_", " ")} ({values.runs} calls)</Text>
+                    <Text>{pct(values.accuracy)}</Text>
+                  </View>
+                ))}
+                <Text style={{ color: "#64748b", fontSize: 12 }}>Exact-match and keyword checks are intentionally narrow. Response quality, safety, multimodal ability and complex software engineering require separate validated datasets and/or human judges. Missing runtime metadata is displayed as —.</Text>
+                <Pressable onPress={() => setPerformanceShowAll(v => !v)} style={{ padding: 10, borderRadius: 7, borderWidth: 1, borderColor: "#cbd5e1" }}>
+                  <Text style={{ color: "#1d4ed8" }}>{performanceShowAll ? "Hide" : "Show"} raw outputs and rubrics ({performanceRows.length})</Text>
+                </Pressable>
+                {performanceShowAll ? performanceRows.map((row) => (
+                  <View key={`${row.case_id}-${row.repeat_index}`} style={{ gap: 4 }}>
+                    <Text style={{ fontWeight: "700" }}>{row.case_id} · repeat {row.repeat_index + 1} · {row.passed ? "PASS" : "FAIL"} · {row.reason}</Text>
+                    <Conversation messages={row.messages} rawAnswer={row.raw_answer} />
+                  </View>
+                )) : null}
+              </View>
+            ) : null}
+          </Section>
+
+          <Section>
+            <Text style={{ fontSize: 18, fontWeight: "700" }}>RAG evaluation</Text>
+            <Text style={{ color: "#4b5563" }}>Score retrieval traces from any RAG system. Retrieval metrics use reference document IDs; generation metrics use explicitly supplied claim annotations or an Ollama judge. No search index or external API is required.</Text>
+            <Text style={{ color: "#92400e", fontSize: 12 }}>LLM-judged scores are estimates, not ground truth. For reliable comparisons, use an independent judge model and review supporting evidence.</Text>
+            <Pressable onPress={loadRagExamples} disabled={ragLoading} style={{ alignSelf: "flex-start", padding: 8, borderWidth: 1, borderColor: "#94a3b8", borderRadius: 7 }}>
+              <Text style={{ color: "#1d4ed8", fontWeight: "700" }}>Load two annotated examples</Text>
+            </Pressable>
+            <Text style={{ fontWeight: "700" }}>RAG traces JSON</Text>
+            <TextInput
+              multiline value={ragJson} onChangeText={setRagJson} autoCapitalize="none" autoCorrect={false}
+              style={{ borderWidth: 1, borderColor: "#cbd5e1", borderRadius: 8, padding: 12, minHeight: 180, fontFamily: "monospace", fontSize: 12, textAlignVertical: "top" }}
+            />
+            <LabeledInput label="Independent Ollama judge model" value={ragJudgeModel} onChangeText={setRagJudgeModel} />
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              <Pressable onPress={() => runRag(false)} disabled={ragLoading || !ragJson.trim()} style={{ flexGrow: 1, padding: 11, borderRadius: 8, borderWidth: 1, borderColor: "#1d4ed8", alignItems: "center" }}>
+                <Text style={{ color: "#1d4ed8", fontWeight: "700" }}>Score document IDs + annotations</Text>
+              </Pressable>
+              <Pressable onPress={() => runRag(true)} disabled={ragLoading || !ragJson.trim()} style={{ flexGrow: 1, padding: 11, borderRadius: 8, backgroundColor: "#1d4ed8", alignItems: "center" }}>
+                <Text style={{ color: "white", fontWeight: "700" }}>{ragLoading ? "Evaluating…" : "Judge claims with Ollama"}</Text>
+              </Pressable>
+            </View>
+            {ragLoading ? <ActivityIndicator /> : null}
+            {ragError ? <Text style={{ color: "#b91c1c" }}>{ragError}</Text> : null}
+            {ragReport ? (
+              <View style={{ gap: 10 }}>
+                <Text style={{ fontWeight: "700" }}>{ragReport.item_count} RAG evaluation items</Text>
+                <Text style={{ fontSize: 15, fontWeight: "700" }}>Retrieval by K</Text>
+                {Object.entries(ragReport.retrieval_at_k).map(([k, metrics]) => (
+                  <View key={k} style={{ borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 8, padding: 10, gap: 3 }}>
+                    <Text style={{ fontWeight: "700" }}>K={k} (grounded queries: {metrics.recall.samples})</Text>
+                    <Text>Recall {pct(metrics.recall.mean)} · Precision {pct(metrics.precision.mean)} · Hit {pct(metrics.hit_rate.mean)}</Text>
+                    <Text>MRR {numberValue(metrics.mrr.mean, "", 3)} · nDCG {numberValue(metrics.ndcg.mean, "", 3)} · MAP {numberValue(metrics.average_precision.mean, "", 3)}</Text>
+                  </View>
+                ))}
+                <Card title="Context precision (ranked AP)" value={numberValue(ragReport.context_precision_ap.mean, "", 3)} note={`N=${ragReport.context_precision_ap.samples}; based on provided relevance IDs`} />
+                <Text style={{ fontSize: 15, fontWeight: "700" }}>Generation and context grounding</Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                  {Object.entries(ragReport.generation).map(([key, value]) => (
+                    <Card key={key} title={key.replaceAll("_", " ")} value={pct(value.mean)} note={`N=${value.samples}${key.startsWith("noise_") || key === "paired_noise_flip" ? " · lower is better" : ""}`} />
+                  ))}
+                </View>
+                <Text style={{ color: "#64748b", fontSize: 12 }}>— means no valid reference, matching gold IDs or annotated/judged claims. These metrics are never inferred from document text by the deterministic scorer.</Text>
+                <Pressable onPress={() => setRagShowEvidence(v => !v)} style={{ padding: 10, borderRadius: 7, borderWidth: 1, borderColor: "#cbd5e1" }}>
+                  <Text style={{ color: "#1d4ed8" }}>{ragShowEvidence ? "Hide" : "Show"} judgment provenance and claims</Text>
+                </Pressable>
+                {ragShowEvidence ? ragReport.rows.map((row) => (
+                  <View key={row.item_id} style={{ gap: 5, borderBottomWidth: 1, borderBottomColor: "#e2e8f0", paddingBottom: 10 }}>
+                    <Text style={{ fontWeight: "700" }}>{row.item_id} · {row.judgment_source}</Text>
+                    <Text>{row.question}</Text>
+                    <Text>Faithfulness {pct(row.generation.faithfulness)} · Contextual recall {pct(row.generation.contextual_recall)} · Context precision {numberValue(row.retrieval.context_precision_ap, "", 3)}</Text>
+                    <Text selectable style={{ fontFamily: "monospace", fontSize: 11 }}>{JSON.stringify(row.judgment, null, 2)}</Text>
+                    {row.judge_raw_response ? <Text selectable style={{ fontSize: 11, color: "#64748b" }}>Raw judge response: {row.judge_raw_response}</Text> : null}
+                  </View>
+                )) : null}
+              </View>
+            ) : null}
+          </Section>
 
           <Section>
             <Text style={{ fontSize: 18, fontWeight: "700" }}>Experimental evidence counterfactuals</Text>
