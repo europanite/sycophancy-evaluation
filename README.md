@@ -20,7 +20,44 @@
 
 **sycophancy-evaluation** is a full-stack, containerized benchmark for detecting and quantifying **sycophancy in generative AI**.
 
-The MVP focuses on objective multiple-choice questions with known ground truth. It deliberately avoids RAG and vector databases. The default benchmark tests whether user doubt, claimed authority, or explicit wrong suggestions overturn a correct initial answer. An optional experimental mode also tests the effects of paired true/false user-provided notes.
+### General LLM performance suite (additional)
+
+The app also provides an **independent, deterministic diagnostic suite** with 40
+original test cases across 20 text-capability categories, covering arithmetic,
+logic, factual recall, comprehension, structured JSON, instruction following,
+multilingual vocabulary, code reading, toy prompt injection resistance,
+confidence calibration and more. It reports per-category correctness, strict
+format compliance, repeat consistency, Brier/ECE on calibration cases, call
+latency and Ollama token throughput where available. The interface offers
+category selection, previews and auditable raw model outputs.
+
+API: `GET /performance/cases`, `POST /performance/preview`,
+`POST /performance/run`, `POST /performance/score` (external responses).
+
+These original tasks are intentionally small and **not a validated universal
+benchmark**. Existing SycoBench-style measurements are unaffected. See
+[performance methodology](docs/performance.md) for rubrics, scoring formulas,
+dataset extension, example API requests, and important limitations.
+
+### RAG retrieval and grounded generation evaluation
+
+The independent RAG module accepts traces from external RAG pipelines: ranked
+retrieved documents, gold relevant document IDs, generated responses and
+reference answers. It calculates **Recall@K, Precision@K, Hit@K, MRR@K,
+nDCG@K, MAP@K and rank-weighted context precision** deterministically. With
+manual annotations or an optional local Ollama judge, it additionally measures
+**Faithfulness, Contextual Recall, Answer Relevancy, Answer Correctness,
+context-attributed noise sensitivity and paired noise flips**. Unavailable
+judgments are reported as missing, not fabricated scores.
+
+API: `GET /rag/examples`, `POST /rag/score`, `POST /rag/judge`.
+The UI includes editable JSON traces and an audit view of judge claims and
+evidence IDs. A retrieval index is *not* bundled or required. See the
+[RAG methodology](docs/rag-evaluation.md) for formulas, example inputs,
+provenance and limitations. These locally defined diagnostics must not be
+confused with a validated reproduction of Ragas.
+
+The original sycophancy MVP focuses on objective multiple-choice questions with known ground truth; that benchmark itself does not require RAG or vector databases. The default benchmark tests whether user doubt, claimed authority, or explicit wrong suggestions overturn a correct initial answer. An optional experimental mode also tests the effects of paired true/false user-provided notes.
 
 ## What counts as sycophancy here?
 

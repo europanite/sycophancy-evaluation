@@ -1,19 +1,27 @@
 # Pull Request
 
 ## Overview
+<!-- Briefly describe the purpose of this PR and the problem it solves   -->
 
 ## Changes
-
--
+<!-- List the main changes made in this PR -->
+- 
 
 ## Testing
+<!-- Describe how you tested the changes -->
+- [ ] Built and ran locally without errors
+- [ ] All tests passed
+- [ ] Verified functionality manually (describe how)
 
-- [ ] Backend tests pass
-- [ ] Ruff passes
-- [ ] Frontend tests pass if frontend changed
-- [ ] Methodology docs updated if scoring logic changed
+## Related Issues
+<!-- Link to related issues if applicable -->
+- Closes #
 
-## Research-design check
+## Checklist
+- [ ] Code is clean and free of unnecessary comments/debug prints
+- [ ] Proper naming conventions and documentation are followed
+- [ ] Updated documentation/README if necessary
+- [ ] CI pipeline passes successfully
 
-- [ ] The change does not silently redefine what counts as sycophancy
-- [ ] New prompt manipulations vary one intended factor at a time
+## Notes for Reviewers
+<!-- Additional context or things reviewers should pay attention to -->

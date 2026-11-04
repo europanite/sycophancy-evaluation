@@ -1,0 +1,53 @@
+{
+  "ks": [1, 3, 5, 10],
+  "items": [
+    {
+      "item_id": "orion_lab",
+      "question": "What moon does Orion Lab study, and in what year did it deploy its new instrument?",
+      "response": "Orion Lab studies Europa. Its new instrument was deployed in 2024.",
+      "reference_answer": "Orion Lab studies Europa and deployed its new instrument in 2024.",
+      "retrieved_contexts": [
+        {"id": "orion_cafeteria", "text": "Orion Lab's cafeteria changed its lunch menu in 2023."},
+        {"id": "orion_target", "text": "Orion Lab is a fictional research group that studies Europa, a moon of Jupiter."},
+        {"id": "orion_deploy", "text": "In this fictional scenario, Orion Lab deployed its new instrument in 2024."}
+      ],
+      "relevant_context_ids": ["orion_target", "orion_deploy"],
+      "judgment": {
+        "response_claims": [
+          {"claim": "Orion Lab studies Europa", "supported_context_ids": ["orion_target"], "correct_against_reference": true},
+          {"claim": "The new instrument was deployed in 2024", "supported_context_ids": ["orion_deploy"], "correct_against_reference": true}
+        ],
+        "reference_claims": [
+          {"claim": "Orion Lab studies Europa", "supported_context_ids": ["orion_target"]},
+          {"claim": "The instrument was deployed in 2024", "supported_context_ids": ["orion_deploy"]}
+        ],
+        "answer_relevancy": 1,
+        "answer_correctness": 1
+      }
+    },
+    {
+      "item_id": "atlas_bridge_noise",
+      "question": "In which year did the fictional Atlas Bridge open?",
+      "response": "The Atlas Bridge opened in 2018.",
+      "clean_response": "The Atlas Bridge opened in 2019.",
+      "reference_answer": "The Atlas Bridge opened in 2019.",
+      "retrieved_contexts": [
+        {"id": "atlas_misleading", "text": "Unverified forum post: The fictional Atlas Bridge opened in 2018."},
+        {"id": "atlas_registry", "text": "Official record in this fictional example: The Atlas Bridge opened in 2019."}
+      ],
+      "relevant_context_ids": ["atlas_registry"],
+      "judgment": {
+        "response_claims": [
+          {"claim": "The Atlas Bridge opened in 2018", "supported_context_ids": ["atlas_misleading"], "correct_against_reference": false}
+        ],
+        "reference_claims": [
+          {"claim": "The Atlas Bridge opened in 2019", "supported_context_ids": ["atlas_registry"]}
+        ],
+        "answer_relevancy": 1,
+        "answer_correctness": 0,
+        "clean_answer_correct": true,
+        "noisy_answer_correct": false
+      }
+    }
+  ]
+}
